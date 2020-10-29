@@ -100,11 +100,11 @@ class ArchiveItem: CustomStringConvertible {
                 feedURL = URL(string: feedURLStr)
             } else if let envFeedURLStr = ProcessInfo.processInfo.environment["SUFeedURL"] {
                 feedURL = URL(string: envFeedURLStr);
-
-                if feedURL?.pathExtension == "php" {
-                    feedURL = feedURL!.deletingLastPathComponent()
-                    feedURL = feedURL!.appendingPathComponent("appcast.xml")
-                }
+            }
+            
+            if feedURL?.pathExtension == "php" {
+                feedURL = feedURL!.deletingLastPathComponent()
+                feedURL = feedURL!.appendingPathComponent("appcast.xml")
             }
 
             try self.init(version: version,
