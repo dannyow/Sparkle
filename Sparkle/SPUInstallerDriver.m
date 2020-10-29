@@ -10,11 +10,11 @@
 #import "SULog.h"
 #import "SPUMessageTypes.h"
 #import "SPUXPCServiceInfo.h"
-#import <Sparkle/SPUUpdaterDelegate.h>
+#import "SPUUpdaterDelegate.h"
 #import "SUAppcastItem.h"
 #import "SULog.h"
 #import "SULocalizations.h"
-#import <Sparkle/SUErrors.h>
+#import "SUErrors.h"
 #import "SUHost.h"
 #import "SUFileManager.h"
 #import "SPUSecureCoding.h"
@@ -446,7 +446,7 @@
 
 - (BOOL)mayUpdateAndRestart
 {
-    return (!self.updaterDelegate || ![self.updaterDelegate respondsToSelector:@selector(updaterShouldRelaunchApplication:)] || [self.updaterDelegate updaterShouldRelaunchApplication:self.updater]);
+    return (!self.updaterDelegate || ![self.updaterDelegate respondsToSelector:@selector((updaterShouldRelaunchApplication:))] || [self.updaterDelegate updaterShouldRelaunchApplication:self.updater]);
 }
 
 // Only implemented due to backwards compability reasons; see -installWithToolAndRelaunch:displayingUserInterface: below

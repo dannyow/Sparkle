@@ -66,6 +66,23 @@ class SUAppcastTest: XCTestCase {
         }
     }
 
+    func testParseAppcastWithLocalizedReleaseNotes() {
+        let appcast = SUAppcast()
+        let testFile = Bundle(for: SUAppcastTest.self).path(forResource: "testlocalizedreleasenotesappcast",
+                                                            ofType: "xml")!
+        let testFileUrl = URL(fileURLWithPath: testFile)
+        XCTAssertNotNil(testFileUrl)
+
+         do {
+            let testFileData = try Data(contentsOf: testFileUrl)
+            let items = try appcast.parseAppcastItems(fromXMLData: testFileData, relativeTo: testFileUrl) as! [SUAppcastItem];
+            XCTAssertEqual("https://sparkle-project.org/#localized_notes_link_works", items[0].releaseNotesURL.absoluteString)
+        } catch let err as NSError {
+            NSLog("%@", err)
+            XCTFail(err.localizedDescription)
+        }
+    }
+
     func testNamespaces() {
         let appcast = SUAppcast()
         let testFile = Bundle(for: SUAppcastTest.self).path(forResource: "testnamespaces", ofType: "xml")!

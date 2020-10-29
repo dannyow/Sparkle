@@ -108,13 +108,42 @@ func writeAppcast(appcastDestPath: URL, updates: [ArchiveItem]) throws {
         }
         minVer?.setChildren([text(update.minimumSystemVersion)])
 
-        let relElement = findElement(name: SUAppcastElementReleaseNotesLink, parent: item)
+        // Look for an existing release notes element
+        let releaseNotesXpath = "\(SUAppcastElementReleaseNotesLink)"
+        let results = ((try? item.nodes(forXPath: releaseNotesXpath)) as? [XMLElement])?
+            .filter { !($0.attributes ?? [])
+            .contains(where: { $0.name == SUXMLLanguage }) }
+        let relElement = results?.first
+        
         if let url = update.releaseNotesURL {
-            if nil == relElement {
+            // The update includes a valid release notes URL
+            if let existingReleaseNotesElement = relElement {
+                // The existing item includes a release notes element. Update it.
+                existingReleaseNotesElement.stringValue = url.absoluteString
+            } else {
+                // The existing item doesn't have a release notes element. Add one.
                 item.addChild(XMLElement.element(withName: SUAppcastElementReleaseNotesLink, stringValue: url.absoluteString) as! XMLElement)
             }
         } else if let childIndex = relElement?.index {
+            // The update doesn't include a release notes URL. Remove it.
             item.removeChild(at: childIndex)
+        }
+
+        let languageNotesNodes = ((try? item.nodes(forXPath: releaseNotesXpath)) as? [XMLElement])?
+            .map { ($0, $0.attribute(forName: SUXMLLanguage)?.stringValue )}
+            .filter { $0.1 != nil } ?? []
+        for (node, language) in languageNotesNodes.reversed()
+            where !update.localizedReleaseNotes().contains(where: { $0.0 == language }) {
+            item.removeChild(at: node.index)
+        }
+        for (language, url) in update.localizedReleaseNotes() {
+            if !languageNotesNodes.contains(where: { $0.1 == language }) {
+                let localizedNode = XMLNode.element(
+                    withName: SUAppcastElementReleaseNotesLink,
+                    children: [XMLNode.text(withStringValue: url.absoluteString) as! XMLNode],
+                    attributes: [XMLNode.attribute(withName: SUXMLLanguage, stringValue: language) as! XMLNode])
+                item.addChild(localizedNode as! XMLNode)
+            }
         }
 
         var enclosure = findElement(name: "enclosure", parent: item)
@@ -157,7 +186,7 @@ func writeAppcast(appcastDestPath: URL, updates: [ArchiveItem]) throws {
                     XMLNode.attribute(withName: SUAppcastAttributeDeltaFrom, uri: sparkleNS, stringValue: delta.fromVersion) as! XMLNode,
                     XMLNode.attribute(withName: "length", stringValue: String(delta.fileSize)) as! XMLNode,
                     XMLNode.attribute(withName: "type", stringValue: "application/octet-stream") as! XMLNode,
-                ]
+                    ]
                 if let sig = delta.edSignature {
                     attributes.append(XMLNode.attribute(withName: SUAppcastAttributeEDSignature, uri: sparkleNS, stringValue: sig) as! XMLNode)
                 }

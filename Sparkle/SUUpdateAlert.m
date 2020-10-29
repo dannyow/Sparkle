@@ -18,10 +18,10 @@
 #import "SUConstants.h"
 #import "SULog.h"
 #import "SULocalizations.h"
-#import <Sparkle/SUAppcastItem.h>
-#import <Sparkle/SPUDownloadData.h>
+#import "SUAppcastItem.h"
+#import "SPUDownloadData.h"
 #import "SUApplicationInfo.h"
-#import <Sparkle/SPUUpdaterSettings.h>
+#import "SPUUpdaterSettings.h"
 #import "SUSystemUpdateInfo.h"
 #import "SUTouchBarForwardDeclarations.h"
 #import "SUTouchBarButtonGroup.h"
@@ -479,7 +479,8 @@ static NSString *const SUUpdateAlertTouchBarIndentifier = @"" SPARKLE_BUNDLE_IDE
 {
     NSURL *requestURL = request.URL;
     NSString *scheme = requestURL.scheme;
-    BOOL whitelistedSafe = [scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"] || [requestURL.absoluteString isEqualToString:@"about:blank"];
+    BOOL isAboutBlank = [requestURL.absoluteString isEqualToString:@"about:blank"];
+    BOOL whitelistedSafe = isAboutBlank || [@[@"http", @"https", @"macappstore", @"macappstores", @"itms-apps", @"itms-appss"] containsObject:scheme];
 
     // Do not allow redirects to dangerous protocols such as file://
     if (!whitelistedSafe) {

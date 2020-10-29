@@ -7,7 +7,7 @@
 //
 
 #import "SUConstants.h"
-#import <Sparkle/SUErrors.h>
+#import "SUErrors.h"
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -82,3 +82,5 @@ NSString *const SURSSElementEnclosure = @"enclosure";
 NSString *const SURSSElementLink = @"link";
 NSString *const SURSSElementPubDate = @"pubDate";
 NSString *const SURSSElementTitle = @"title";
+
+NSString *const SUXMLLanguage = @"xml:lang";
