@@ -18,6 +18,7 @@
 @property (nonatomic, readonly) SPUUIBasedUpdateDriver *uiDriver;
 @property (nonatomic, readonly) id<SPUUserDriver> userDriver;
 @property (nonatomic) BOOL showingUserInitiatedProgress;
+@property (nonatomic) BOOL showingUpdate;
 @property (nonatomic) BOOL aborted;
 
 @end
@@ -27,6 +28,7 @@
 @synthesize uiDriver = _uiDriver;
 @synthesize userDriver = _userDriver;
 @synthesize showingUserInitiatedProgress = _showingUserInitiatedProgress;
+@synthesize showingUpdate = _showingUpdate;
 @synthesize aborted = _aborted;
 
 - (instancetype)initWithHost:(SUHost *)host applicationBundle:(NSBundle *)applicationBundle sparkleBundle:(NSBundle *)sparkleBundle updater:(id)updater userDriver:(id <SPUUserDriver>)userDriver updaterDelegate:(nullable id <SPUUpdaterDelegate>)updaterDelegate
@@ -50,19 +52,32 @@
             } else {
                 self.showingUserInitiatedProgress = YES;
                 
-                [self.userDriver showUserInitiatedUpdateCheckWithCompletion:^(SPUUserInitiatedCheckStatus completionStatus) {
-                    switch (completionStatus) {
-                        case SPUUserInitiatedCheckDone:
-                            break;
-                        case SPUUserInitiatedCheckCanceled:
-                            dispatch_async(dispatch_get_main_queue(), ^{
-                                if (self.showingUserInitiatedProgress) {
-                                    [self abortUpdate];
-                                }
-                            });
-                            break;
-                    }
-                }];
+                void (^cancelUpdateCheck)(void) = ^{
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (self.showingUserInitiatedProgress) {
+                            [self abortUpdate];
+                        }
+                    });
+                };
+                
+                self.showingUpdate = YES;
+                
+                if ([self.userDriver respondsToSelector:@selector(showUserInitiatedUpdateCheckWithCancellation:)]) {
+                    [self.userDriver showUserInitiatedUpdateCheckWithCancellation:cancelUpdateCheck];
+                } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                    [self.userDriver showUserInitiatedUpdateCheckWithCompletion:^(SPUUserInitiatedCheckStatus completionStatus) {
+#pragma clang diagnostic pop
+                        switch (completionStatus) {
+                            case SPUUserInitiatedCheckDone:
+                                break;
+                            case SPUUserInitiatedCheckCanceled:
+                                cancelUpdateCheck();
+                                break;
+                        }
+                    }];
+                }
                 
                 [self.uiDriver checkForUpdatesAtAppcastURL:appcastURL withUserAgent:userAgent httpHeaders:httpHeaders inBackground:NO includesSkippedUpdates:YES];
             }
@@ -99,7 +114,12 @@
 {
     if (self.showingUserInitiatedProgress) {
         self.showingUserInitiatedProgress = NO;
-        [self.userDriver dismissUserInitiatedUpdateCheck];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        if ([self.userDriver respondsToSelector:@selector(dismissUserInitiatedUpdateCheck)]) {
+            [self.userDriver dismissUserInitiatedUpdateCheck];
+        }
+#pragma clang diagnostic pop
     }
 }
 
@@ -111,7 +131,12 @@
 - (void)abortUpdateWithError:(nullable NSError *)error
 {
     if (self.showingUserInitiatedProgress) {
-        [self.userDriver dismissUserInitiatedUpdateCheck];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        if ([self.userDriver respondsToSelector:@selector(dismissUserInitiatedUpdateCheck)]) {
+            [self.userDriver dismissUserInitiatedUpdateCheck];
+        }
+#pragma clang diagnostic pop
         self.showingUserInitiatedProgress = NO;
     }
     self.aborted = YES;

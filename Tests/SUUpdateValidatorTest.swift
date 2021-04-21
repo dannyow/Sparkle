@@ -82,12 +82,12 @@ class SUUpdateValidatorTest: XCTestCase {
     }
 
     func testPrevalidation(bundle bundleConfig: BundleConfig, signatures signatureConfig: SignatureConfig, expectedResult: Bool, line: UInt = #line) {
-        let host = SUHost(bundle: self.bundle(bundleConfig))!
+        let host = SUHost(bundle: self.bundle(bundleConfig))
         let signatures = self.signatures(signatureConfig)
 
         let validator = SUUpdateValidator(downloadPath: self.signedTestFilePath, signatures: signatures, host: host)
 
-        let result = validator.validateDownloadPath()
+        let result = (try? validator.validateDownloadPath()) != nil
         XCTAssertEqual(result, expectedResult, "bundle: \(bundleConfig), signatures: \(signatureConfig)", line: line)
     }
 
@@ -102,7 +102,7 @@ class SUUpdateValidatorTest: XCTestCase {
 
     func testPostValidation(oldBundle oldBundleConfig: BundleConfig, newBundle newBundleConfig: BundleConfig, signatures signatureConfig: SignatureConfig, expectedResult: Bool, line: UInt = #line) {
         let oldBundle = self.bundle(oldBundleConfig)
-        let host = SUHost(bundle: oldBundle)!
+        let host = SUHost(bundle: oldBundle)
         let signatures = self.signatures(signatureConfig)
 
         let validator = SUUpdateValidator(downloadPath: self.signedTestFilePath, signatures: signatures, host: host)
@@ -112,7 +112,7 @@ class SUUpdateValidatorTest: XCTestCase {
         let newBundle = self.bundle(newBundleConfig)
         try! FileManager.default.copyItem(at: newBundle.bundleURL, to: URL(fileURLWithPath: updateDirectory).appendingPathComponent(oldBundle.bundleURL.lastPathComponent))
 
-        let result = validator.validate(withUpdateDirectory: updateDirectory)
+        let result = (try? validator.validate(withUpdateDirectory: updateDirectory)) != nil
         XCTAssertEqual(result, expectedResult, "oldBundle: \(oldBundleConfig), newBundle: \(newBundleConfig), signatures: \(signatureConfig)", line: line)
     }
 

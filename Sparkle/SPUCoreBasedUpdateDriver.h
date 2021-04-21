@@ -17,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol SPUCoreBasedUpdateDriverDelegate <NSObject>
 
-- (void)basicDriverDidFindUpdateWithAppcastItem:(SUAppcastItem *)updateItem;
+- (void)basicDriverDidFindUpdateWithAppcastItem:(SUAppcastItem *)updateItem preventsAutoupdate:(BOOL)preventsAutoupdate;
 
 - (void)installerDidFinishPreparationAndWillInstallImmediately:(BOOL)willInstallImmediately silently:(BOOL)willInstallSilently;
 
@@ -43,7 +43,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)installerIsSendingAppTerminationSignal;
 
-- (void)installerDidFinishInstallationWithAcknowledgement:(void(^)(void))acknowledgement;
+- (void)installerDidFinishInstallationAndRelaunched:(BOOL)relaunched acknowledgement:(void(^)(void))acknowledgement;
 
 @end
 
@@ -63,13 +63,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)downloadUpdateFromAppcastItem:(SUAppcastItem *)updateItem inBackground:(BOOL)background;
 
-- (void)deferInformationalUpdate:(SUAppcastItem *)updateItem;
+- (void)deferInformationalUpdate:(SUAppcastItem *)updateItem preventsAutoupdate:(BOOL)preventsAutoupdate;
 
 - (void)extractDownloadedUpdate;
 
 - (void)clearDownloadedUpdate;
 
-- (void)finishInstallationWithResponse:(SPUInstallUpdateStatus)installUpdateStatus displayingUserInterface:(BOOL)displayingUserInterface;
+- (void)finishInstallationWithResponse:(SPUUserUpdateChoice)installUpdateStatus displayingUserInterface:(BOOL)displayingUserInterface;
 
 - (void)abortUpdateAndShowNextUpdateImmediately:(BOOL)shouldShowUpdateImmediately error:(nullable NSError *)error;
 

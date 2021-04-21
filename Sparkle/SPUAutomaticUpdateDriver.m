@@ -77,16 +77,21 @@
     SULog(SULogLevelError, @"Error: resumeDownloadedUpdate:completion: called on SPUAutomaticUpdateDriver");
 }
 
-- (void)basicDriverDidFindUpdateWithAppcastItem:(SUAppcastItem *)updateItem
+- (void)basicDriverDidFindUpdateWithAppcastItem:(SUAppcastItem *)updateItem preventsAutoupdate:(BOOL)preventsAutoupdate
 {
     self.updateItem = updateItem;
     
-    if (updateItem.isInformationOnlyUpdate) {
-        [self.coreDriver deferInformationalUpdate:updateItem];
+    if (updateItem.isInformationOnlyUpdate || preventsAutoupdate) {
+        [self.coreDriver deferInformationalUpdate:updateItem preventsAutoupdate:preventsAutoupdate];
         [self abortUpdate];
     } else {
         [self.coreDriver downloadUpdateFromAppcastItem:updateItem inBackground:YES];
     }
+}
+
+- (BOOL)showingUpdate
+{
+    return NO;
 }
 
 - (void)installerDidFinishPreparationAndWillInstallImmediately:(BOOL)willInstallImmediately silently:(BOOL)willInstallSilently
@@ -99,7 +104,7 @@
         if (self.willInstallSilently && [updaterDelegate respondsToSelector:@selector(updater:willInstallUpdateOnQuit:immediateInstallationBlock:)]) {
             __weak SPUAutomaticUpdateDriver *weakSelf = self;
             installationHandledByDelegate = [updaterDelegate updater:self.updater willInstallUpdateOnQuit:self.updateItem immediateInstallationBlock:^{
-                [weakSelf.coreDriver finishInstallationWithResponse:SPUInstallAndRelaunchUpdateNow displayingUserInterface:NO];
+                [weakSelf.coreDriver finishInstallationWithResponse:SPUUserUpdateChoiceInstall displayingUserInterface:NO];
             }];
         }
         

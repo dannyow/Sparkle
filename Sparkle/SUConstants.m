@@ -18,6 +18,8 @@
 // Define some minimum intervals to avoid DoS-like checking attacks
 const NSTimeInterval SUMinimumUpdateCheckInterval = DEBUG ? 60 : (60 * 60);
 const NSTimeInterval SUDefaultUpdateCheckInterval = DEBUG ? 60 : (60 * 60 * 24);
+// The amount of time the system can defer our update check (for improved performance)
+const uint64_t SULeewayUpdateCheckInterval = DEBUG ? 1 : 15;
 
 // If the update has already been automatically downloaded, we normally don't want to bug the user about the update
 // However if the user has gone a very long time without quitting an application, we will bug them
@@ -32,7 +34,7 @@ NSString *const SUTechnicalErrorInformationKey = @"SUTechnicalErrorInformation";
 
 NSString *const SUFeedURLKey = @"SUFeedURL";
 NSString *const SUHasLaunchedBeforeKey = @"SUHasLaunchedBefore";
-NSString *const SUUpdateRelaunchingMarkerKey = @"SUUpdateRelaunchingMarker";
+NSString *const SURelaunchHostBundleKey = @"SURelaunchHostBundle";
 NSString *const SUShowReleaseNotesKey = @"SUShowReleaseNotes";
 NSString *const SUSkippedVersionKey = @"SUSkippedVersion";
 NSString *const SUScheduledCheckIntervalKey = @"SUScheduledCheckInterval";
@@ -47,6 +49,7 @@ NSString *const SUAllowsAutomaticUpdatesKey = @"SUAllowsAutomaticUpdates";
 NSString *const SUEnableSystemProfilingKey = @"SUEnableSystemProfiling";
 NSString *const SUEnableAutomaticChecksKey = @"SUEnableAutomaticChecks";
 NSString *const SUSendProfileInfoKey = @"SUSendProfileInfo";
+NSString *const SUUpdateGroupIdentifierKey = @"SUUpdateGroupIdentifier";
 NSString *const SULastProfileSubmitDateKey = @"SULastProfileSubmissionDate";
 NSString *const SUPromptUserOnFirstLaunchKey = @"SUPromptUserOnFirstLaunch";
 NSString *const SUEnableJavaScriptKey = @"SUEnableJavaScript";
@@ -69,10 +72,12 @@ NSString *const SUAppcastAttributeInstallationType = @"sparkle:installationType"
 
 NSString *const SUAppcastElementCriticalUpdate = @"sparkle:criticalUpdate";
 NSString *const SUAppcastElementDeltas = @"sparkle:deltas";
+NSString *const SUAppcastElementMinimumAutoupdateVersion = @"sparkle:minimumAutoupdateVersion";
 NSString *const SUAppcastElementMinimumSystemVersion = @"sparkle:minimumSystemVersion";
 NSString *const SUAppcastElementMaximumSystemVersion = @"sparkle:maximumSystemVersion";
 NSString *const SUAppcastElementReleaseNotesLink = @"sparkle:releaseNotesLink";
 NSString *const SUAppcastElementTags = @"sparkle:tags";
+NSString *const SUAppcastElementPhasedRolloutInterval = @"sparkle:phasedRolloutInterval";
 
 NSString *const SURSSAttributeURL = @"url";
 NSString *const SURSSAttributeLength = @"length";

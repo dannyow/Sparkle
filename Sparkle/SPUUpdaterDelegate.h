@@ -38,6 +38,22 @@ SU_EXPORT extern NSString *const SUUpdaterAppcastItemNotificationKey;
 SU_EXPORT extern NSString *const SUUpdaterAppcastNotificationKey;
 
 // -----------------------------------------------------------------------------
+//    System Profile Keys
+// -----------------------------------------------------------------------------
+
+SU_EXPORT extern NSString *const SUSystemProfilerApplicationNameKey;
+SU_EXPORT extern NSString *const SUSystemProfilerApplicationVersionKey;
+SU_EXPORT extern NSString *const SUSystemProfilerCPU64bitKey;
+SU_EXPORT extern NSString *const SUSystemProfilerCPUCountKey;
+SU_EXPORT extern NSString *const SUSystemProfilerCPUFrequencyKey;
+SU_EXPORT extern NSString *const SUSystemProfilerCPUTypeKey;
+SU_EXPORT extern NSString *const SUSystemProfilerCPUSubtypeKey;
+SU_EXPORT extern NSString *const SUSystemProfilerHardwareModelKey;
+SU_EXPORT extern NSString *const SUSystemProfilerMemoryKey;
+SU_EXPORT extern NSString *const SUSystemProfilerOperatingSystemVersionKey;
+SU_EXPORT extern NSString *const SUSystemProfilerPreferredLanguageKey;
+
+// -----------------------------------------------------------------------------
 //	SPUUpdater Delegate:
 // -----------------------------------------------------------------------------
 
@@ -100,6 +116,21 @@ typedef NS_ENUM(NSInteger, SPUUpdateCheck)
 #endif
 
 /*!
+ Returns a list of system profile keys to be appended to the appcast URL's query string.
+
+ If this is unimplemented then all keys will be included.
+
+ \param updater The updater instance.
+
+ \return An array of system profile keys to include in the appcast URL's query string. Elements must be one of the SUSystemProfiler*Key constants
+ */
+#if __has_feature(objc_generics)
+- (NSArray<NSString *> *)allowedSystemProfileKeysForUpdater:(SPUUpdater *)updater;
+#else
+- (NSArray *)allowedSystemProfileKeysForUpdater:(SPUUpdater *)updater;
+#endif
+
+/*!
  Returns a custom appcast URL.
  
  Override this to dynamically specify the entire URL.
@@ -158,6 +189,14 @@ typedef NS_ENUM(NSInteger, SPUUpdateCheck)
 - (void)updaterDidNotFindUpdate:(SPUUpdater *)updater;
 
 /*!
+ Called when an update is skipped by the user.
+ 
+ \param updater The updater instance.
+ \param item The appcast item corresponding to the update that the user skipped.
+ */
+- (void)updater:(SPUUpdater *)updater userDidSkipThisVersion:(SUAppcastItem *)item;
+
+/*!
  Returns whether the release notes (if available) should be downloaded after an update is found and shown.
  
  This is specifically for the releaseNotesLink element in the appcast.
@@ -178,6 +217,14 @@ typedef NS_ENUM(NSInteger, SPUUpdateCheck)
 - (void)updater:(SPUUpdater *)updater willDownloadUpdate:(SUAppcastItem *)item withRequest:(NSMutableURLRequest *)request;
 
 /*!
+ Called immediately after succesfull download of the specified update.
+ 
+ \param updater The SUUpdater instance.
+ \param item The appcast item corresponding to the update that has been downloaded.
+ */
+- (void)updater:(SPUUpdater *)updater didDownloadUpdate:(SUAppcastItem *)item;
+
+/*!
  Called after the specified update failed to download.
  
  \param updater The updater instance.
@@ -192,6 +239,22 @@ typedef NS_ENUM(NSInteger, SPUUpdateCheck)
  \param updater The updater instance.
  */
 - (void)userDidCancelDownload:(SPUUpdater *)updater;
+
+/*!
+ Called immediately before extracting the specified downloaded update.
+ 
+ \param updater The SUUpdater instance.
+ \param item The appcast item corresponding to the update that is proposed to be extracted.
+ */
+- (void)updater:(SPUUpdater *)updater willExtractUpdate:(SUAppcastItem *)item;
+
+/*!
+ Called immediately after extracting the specified downloaded update.
+ 
+ \param updater The SUUpdater instance.
+ \param item The appcast item corresponding to the update that has been extracted.
+ */
+- (void)updater:(SPUUpdater *)updater didExtractUpdate:(SUAppcastItem *)item;
 
 /*!
  Called immediately before installing the specified update.
@@ -301,14 +364,6 @@ typedef NS_ENUM(NSInteger, SPUUpdateCheck)
  \param error The error that caused the abort
  */
 - (void)updater:(SPUUpdater *)updater didAbortWithError:(NSError *)error;
-
-/*!
- Called after an update is aborted due to an error during an scheduled update check.
-  
- \param updater The updater instance.
- \param error The error that caused the abort
- */
-- (void)updater:(SPUUpdater *)updater scheduledUpdateCheckDidAbortWithError:(NSError *)error;
 
 @end
 

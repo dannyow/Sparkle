@@ -31,7 +31,7 @@ Usage: \(command) [OPTIONS] [ARCHIVES_FOLDER]
     -f: provide the path to the private DSA key
     -n: provide the name of the private DSA key. This option must be used with `-k`
     -k: provide the name of the keychain. This option must be used with `-n`
-    -s: provide the path to the private EdDSA key
+    -s: provide the private EdDSA key (128 characters)
     -o: provide a filename for the generated appcast (allowed when only one will be created)
     
     --download-url-prefix: provide a prefix used to construct URLs for update downloads
@@ -126,8 +126,8 @@ func parseCommandLineOptions() -> CommandLineArguments {
         }
 
         // remove the already parsed arguments
-        arguments.remove(at: privateDSAKeyOptionIndex)
         arguments.remove(at: privateDSAKeyOptionIndex + 1)
+        arguments.remove(at: privateDSAKeyOptionIndex)
     }
 
     // check if the private dsa sould be loaded using the keyname and the name of the keychain

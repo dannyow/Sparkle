@@ -20,6 +20,7 @@
 #import "SUAppcastItem.h"
 #import "SULocalizations.h"
 #import "SPUInstallationType.h"
+#import "SUPhasedUpdateGroupInfo.h"
 
 
 #include "AppKitPrevention.h"
@@ -40,6 +41,7 @@
 @property (nonatomic, readonly, weak) id updater; // if we didn't have legacy support, I'd remove this..
 @property (nullable, nonatomic, readonly, weak) id <SPUUpdaterDelegate>updaterDelegate;
 @property (nonatomic) NSString *userAgent;
+@property (nonatomic, nullable) NSDictionary *httpHeaders;
 
 @end
 
@@ -57,6 +59,7 @@
 @synthesize updater = _updater;
 @synthesize updaterDelegate = _updaterDelegate;
 @synthesize userAgent = _userAgent;
+@synthesize httpHeaders = _httpHeaders;
 @synthesize resumableUpdate = _resumableUpdate;
 
 - (instancetype)initWithHost:(SUHost *)host applicationBundle:(NSBundle *)applicationBundle sparkleBundle:(NSBundle *)sparkleBundle updater:(id)updater updaterDelegate:(nullable id <SPUUpdaterDelegate>)updaterDelegate delegate:(id<SPUCoreBasedUpdateDriverDelegate>)delegate
@@ -99,7 +102,7 @@
         // Otherwise check if we have sufficient privileges to update without interaction
         [self.installerDriver checkIfApplicationInstallationRequiresAuthorizationWithReply:^(BOOL requiresAuthorization) {
             if (requiresAuthorization) {
-                reply([NSError errorWithDomain:SUSparkleErrorDomain code:SUNotAllowedInteractionError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:SULocalizedString(@"No new update has been checked because the installation will require interaction, which has been prevented.", nil)] }]);
+                reply([NSError errorWithDomain:SUSparkleErrorDomain code:SUNotAllowedInteractionError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"No new update has been checked because the installation will require interaction, which has been prevented."] }]);
             } else {
                 reply(nil);
             }
@@ -110,6 +113,7 @@
 - (void)checkForUpdatesAtAppcastURL:(NSURL *)appcastURL withUserAgent:(NSString *)userAgent httpHeaders:(NSDictionary * _Nullable)httpHeaders inBackground:(BOOL)background includesSkippedUpdates:(BOOL)includesSkippedUpdates requiresSilentInstall:(BOOL)silentInstall
 {
     self.userAgent = userAgent;
+    self.httpHeaders = httpHeaders;
     self.silentInstall = silentInstall;
     
     [self.basicDriver checkForUpdatesAtAppcastURL:appcastURL withUserAgent:userAgent httpHeaders:httpHeaders inBackground:background includesSkippedUpdates:includesSkippedUpdates];
@@ -141,24 +145,25 @@
     }
 }
 
-- (void)basicDriverDidFindUpdateWithAppcastItem:(SUAppcastItem *)updateItem
+- (void)basicDriverDidFindUpdateWithAppcastItem:(SUAppcastItem *)updateItem preventsAutoupdate:(BOOL)preventsAutoupdate systemDomain:(NSNumber * _Nullable)systemDomain
 {
     self.updateItem = updateItem;
     
     if (self.resumingInstallingUpdate) {
-        [self.installerDriver resumeInstallingUpdateWithUpdateItem:updateItem];
-        [self.delegate basicDriverDidFindUpdateWithAppcastItem:updateItem];
+        assert(systemDomain != nil);
+        [self.installerDriver resumeInstallingUpdateWithUpdateItem:updateItem systemDomain:systemDomain.boolValue];
+        [self.delegate basicDriverDidFindUpdateWithAppcastItem:updateItem preventsAutoupdate:preventsAutoupdate];
     } else {
         if (!self.preventsInstallerInteraction) {
             // Simple case - delegate allows interaction, so we should continue along
-            [self.delegate basicDriverDidFindUpdateWithAppcastItem:updateItem];
+            [self.delegate basicDriverDidFindUpdateWithAppcastItem:updateItem preventsAutoupdate:preventsAutoupdate];
         } else {
             // Package type installations will always require installer interaction as long as we don't support running as root
             // If it's not a package type installation, we should be okay since we did an auth check before checking for updates above
             if (![updateItem.installationType isEqualToString:SPUInstallationTypeApplication]) {
-                [self.delegate coreDriverIsRequestingAbortUpdateWithError:[NSError errorWithDomain:SUSparkleErrorDomain code:SUNotAllowedInteractionError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:SULocalizedString(@"A new update is available but cannot be installed because interaction has been prevented.", nil)] }]];
+                [self.delegate coreDriverIsRequestingAbortUpdateWithError:[NSError errorWithDomain:SUSparkleErrorDomain code:SUNotAllowedInteractionError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"A new update is available but cannot be installed because interaction has been prevented."] }]];
             } else {
-                [self.delegate basicDriverDidFindUpdateWithAppcastItem:updateItem];
+                [self.delegate basicDriverDidFindUpdateWithAppcastItem:updateItem preventsAutoupdate:preventsAutoupdate];
             }
         }
     }
@@ -166,7 +171,7 @@
 
 - (void)downloadUpdateFromAppcastItem:(SUAppcastItem *)updateItem inBackground:(BOOL)background
 {
-    self.downloadDriver = [[SPUDownloadDriver alloc] initWithUpdateItem:updateItem host:self.host userAgent:self.userAgent inBackground:background delegate:self];
+    self.downloadDriver = [[SPUDownloadDriver alloc] initWithUpdateItem:updateItem host:self.host userAgent:self.userAgent httpHeaders:self.httpHeaders inBackground:background delegate:self];
     
     if ([self.updaterDelegate respondsToSelector:@selector((updater:willDownloadUpdate:withRequest:))]) {
         [self.updaterDelegate updater:self.updater
@@ -200,13 +205,24 @@
 
 - (void)downloadDriverDidDownloadUpdate:(SPUDownloadedUpdate *)downloadedUpdate
 {
+    // Use a new update group for our next downloaded update
+    // We could restrict this to when the appcast was downloaded in the background,
+    // but it shouldn't matter.
+    if (downloadedUpdate.updateItem.phasedRolloutInterval != nil) {
+        [SUPhasedUpdateGroupInfo setNewUpdateGroupIdentifierForHost:self.host];
+    }
+    
+    if ([self.updaterDelegate respondsToSelector:@selector(updater:didDownloadUpdate:)]) {
+        [self.updaterDelegate updater:self.updater didDownloadUpdate:self.updateItem];
+    }
+    
     self.resumableUpdate = downloadedUpdate;
     [self extractUpdate:downloadedUpdate];
 }
 
-- (void)deferInformationalUpdate:(SUAppcastItem *)updateItem
+- (void)deferInformationalUpdate:(SUAppcastItem *)updateItem preventsAutoupdate:(BOOL)preventsAutoupdate
 {
-    self.resumableUpdate = [[SPUInformationalUpdate alloc] initWithAppcastItem:updateItem];
+    self.resumableUpdate = [[SPUInformationalUpdate alloc] initWithAppcastItem:updateItem preventsAutoupdate:preventsAutoupdate];
 }
 
 - (void)extractDownloadedUpdate
@@ -222,6 +238,10 @@
 
 - (void)extractUpdate:(SPUDownloadedUpdate *)downloadedUpdate
 {
+    if ([self.updaterDelegate respondsToSelector:@selector(updater:willExtractUpdate:)]) {
+        [self.updaterDelegate updater:self.updater willExtractUpdate:self.updateItem];
+    }
+    
     // Now we have to extract the downloaded archive.
     if ([self.delegate respondsToSelector:@selector(coreDriverDidStartExtractingUpdate)]) {
         [self.delegate coreDriverDidStartExtractingUpdate];
@@ -234,6 +254,10 @@
             // If the installer started properly, we can't use the downloaded update archive anymore
             // Especially if the installer fails later and we try resuming the update with a missing archive file
             [self clearDownloadedUpdate];
+            
+            if ([self.updaterDelegate respondsToSelector:@selector(updater:didExtractUpdate:)]) {
+                [self.updaterDelegate updater:self.updater didExtractUpdate:self.updateItem];
+            }
         }
     }];
 }
@@ -273,16 +297,14 @@
     [self.delegate installerDidFinishPreparationAndWillInstallImmediately:willInstallImmediately silently:willInstallSilently];
 }
 
-- (void)finishInstallationWithResponse:(SPUInstallUpdateStatus)installUpdateStatus displayingUserInterface:(BOOL)displayingUserInterface
+- (void)finishInstallationWithResponse:(SPUUserUpdateChoice)response displayingUserInterface:(BOOL)displayingUserInterface
 {
-    switch (installUpdateStatus) {
-        case SPUDismissUpdateInstallation:
+    switch (response) {
+        case SPUUserUpdateChoiceDismiss:
+        case SPUUserUpdateChoiceSkip:
             [self.delegate coreDriverIsRequestingAbortUpdateWithError:nil];
             break;
-        case SPUInstallUpdateNow:
-            [self.installerDriver installWithToolAndRelaunch:NO displayingUserInterface:displayingUserInterface];
-            break;
-        case SPUInstallAndRelaunchUpdateNow:
+        case SPUUserUpdateChoiceInstall:
             [self.installerDriver installWithToolAndRelaunch:YES displayingUserInterface:displayingUserInterface];
             break;
     }
@@ -302,10 +324,10 @@
     }
 }
 
-- (void)installerDidFinishInstallationWithAcknowledgement:(void(^)(void))acknowledgement
+- (void)installerDidFinishInstallationAndRelaunched:(BOOL)relaunched acknowledgement:(void(^)(void))acknowledgement
 {
-    if ([self.delegate respondsToSelector:@selector(installerDidFinishInstallationWithAcknowledgement:)]) {
-        [self.delegate installerDidFinishInstallationWithAcknowledgement:acknowledgement];
+    if ([self.delegate respondsToSelector:@selector(installerDidFinishInstallationAndRelaunched:acknowledgement:)]) {
+        [self.delegate installerDidFinishInstallationAndRelaunched:relaunched acknowledgement:acknowledgement];
     } else {
         acknowledgement();
     }

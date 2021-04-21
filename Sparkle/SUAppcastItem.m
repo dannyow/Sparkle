@@ -49,6 +49,8 @@ static NSString *SUAppcastItemInstallationTypeKey = @"SUAppcastItemInstallationT
 @synthesize osString = _osString;
 @synthesize propertiesDictionary = _propertiesDictionary;
 @synthesize installationType = _installationType;
+@synthesize minimumAutoupdateVersion = _minimumAutoupdateVersion;
+@synthesize phasedRolloutInterval = _phasedRolloutInterval;
 
 + (BOOL)supportsSecureCoding
 {
@@ -76,10 +78,13 @@ static NSString *SUAppcastItemInstallationTypeKey = @"SUAppcastItemInstallationT
         _itemDescription = [(NSString *)[decoder decodeObjectOfClass:[NSString class] forKey:SUAppcastItemDescriptionKey] copy];
         _maximumSystemVersion = [(NSString *)[decoder decodeObjectOfClass:[NSString class] forKey:SUAppcastItemMaximumSystemVersionKey] copy];
         _minimumSystemVersion = [(NSString *)[decoder decodeObjectOfClass:[NSString class] forKey:SUAppcastItemMinimumSystemVersionKey] copy];
+        _minimumAutoupdateVersion = [(NSString *)[decoder decodeObjectOfClass:[NSString class] forKey:SUAppcastElementMinimumAutoupdateVersion] copy];
         _releaseNotesURL = [decoder decodeObjectOfClass:[NSURL class] forKey:SUAppcastItemReleaseNotesURLKey];
         _title = [(NSString *)[decoder decodeObjectOfClass:[NSString class] forKey:SUAppcastItemTitleKey] copy];
         _versionString = [(NSString *)[decoder decodeObjectOfClass:[NSString class] forKey:SUAppcastItemVersionStringKey] copy];
+        _osString = [(NSString *)[decoder decodeObjectOfClass:[NSString class] forKey:SUAppcastAttributeOsType] copy];
         _propertiesDictionary = [decoder decodeObjectOfClasses:[NSSet setWithArray:@[[NSDictionary class], [NSString class], [NSDate class], [NSArray class]]] forKey:SUAppcastItemPropertiesKey];
+        _phasedRolloutInterval = [decoder decodeObjectOfClass:[NSNumber class] forKey:SUAppcastElementPhasedRolloutInterval];
     }
     
     return self;
@@ -121,6 +126,10 @@ static NSString *SUAppcastItemInstallationTypeKey = @"SUAppcastItemInstallationT
         [encoder encodeObject:self.minimumSystemVersion forKey:SUAppcastItemMinimumSystemVersionKey];
     }
     
+    if (self.minimumAutoupdateVersion != nil) {
+        [encoder encodeObject:self.minimumAutoupdateVersion forKey:SUAppcastElementMinimumAutoupdateVersion];
+    }
+    
     if (self.releaseNotesURL != nil) {
         [encoder encodeObject:self.releaseNotesURL forKey:SUAppcastItemReleaseNotesURLKey];
     }
@@ -133,12 +142,20 @@ static NSString *SUAppcastItemInstallationTypeKey = @"SUAppcastItemInstallationT
         [encoder encodeObject:self.versionString forKey:SUAppcastItemVersionStringKey];
     }
     
+    if (self.osString != nil) {
+        [encoder encodeObject:self.osString forKey:SUAppcastAttributeOsType];
+    }
+    
     if (self.propertiesDictionary != nil) {
         [encoder encodeObject:self.propertiesDictionary forKey:SUAppcastItemPropertiesKey];
     }
     
     if (self.installationType != nil) {
         [encoder encodeObject:self.installationType forKey:SUAppcastItemInstallationTypeKey];
+    }
+    
+    if (self.phasedRolloutInterval != nil) {
+        [encoder encodeObject:self.phasedRolloutInterval forKey:SUAppcastElementPhasedRolloutInterval];
     }
 }
 
@@ -156,6 +173,19 @@ static NSString *SUAppcastItemInstallationTypeKey = @"SUAppcastItemInstallationT
 - (BOOL)isMacOsUpdate
 {
     return self.osString == nil || [self.osString isEqualToString:SUAppcastAttributeValueMacOS];
+}
+
+- (NSDate *)date
+{
+    if (self.dateString == nil) {
+        return nil;
+    }
+    
+    NSDateFormatter* dateFormatter = [[NSDateFormatter alloc] init];
+    dateFormatter.locale = [[NSLocale alloc] initWithLocaleIdentifier:@"en_US"];
+    dateFormatter.dateFormat = @"E, dd MMM yyyy HH:mm:ss Z";
+    
+    return [dateFormatter dateFromString:self.dateString];
 }
 
 - (BOOL)isInformationOnlyUpdate
@@ -257,11 +287,18 @@ static NSString *SUAppcastItemInstallationTypeKey = @"SUAppcastItemInstallationT
         }
         if (enclosure) {
             _signatures = [[SUSignatures alloc] initWithDsa:[enclosure objectForKey:SUAppcastAttributeDSASignature] ed:[enclosure objectForKey:SUAppcastAttributeEDSignature]];
+            _osString = [enclosure objectForKey:SUAppcastAttributeOsType];
         }
 
         _versionString = [(NSString *)newVersion copy];
         _minimumSystemVersion = [(NSString *)[dict objectForKey:SUAppcastElementMinimumSystemVersion] copy];
         _maximumSystemVersion = [(NSString *)[dict objectForKey:SUAppcastElementMaximumSystemVersion] copy];
+        _minimumAutoupdateVersion = [(NSString *)[dict objectForKey:SUAppcastElementMinimumAutoupdateVersion] copy];
+        
+        NSString* rolloutIntervalString = [(NSString *)[dict objectForKey:SUAppcastElementPhasedRolloutInterval] copy];
+        if (rolloutIntervalString != nil) {
+            _phasedRolloutInterval = @(rolloutIntervalString.integerValue);
+        }
 
         NSString *shortVersionString = [enclosure objectForKey:SUAppcastAttributeShortVersionString];
         if (nil == shortVersionString) {
@@ -276,7 +313,14 @@ static NSString *SUAppcastItemInstallationTypeKey = @"SUAppcastItemInstallationT
         
         _installationType = [enclosure objectForKey:SUAppcastAttributeInstallationType];
         if (_installationType == nil) {
-            _installationType = SPUInstallationTypeDefault;
+            // If we have a flat package, assume installation type is guided
+            // (flat / non-archived interactive packages are not supported)
+            // Otherwise assume we have a normal application inside an archive
+            if ([_fileURL.pathExtension isEqualToString:@"pkg"] || [_fileURL.pathExtension isEqualToString:@"mpkg"]) {
+                _installationType = SPUInstallationTypeGuidedPackage;
+            } else {
+                _installationType = SPUInstallationTypeApplication;
+            }
         } else if (!SPUValidInstallationType(_installationType)) {
             if (error != NULL) {
                 *error = [NSString stringWithFormat:@"Feed item's enclosure lacks valid %@ (found %@)", SUAppcastAttributeInstallationType, _installationType];
